@@ -2774,7 +2774,9 @@ static bool prepare_staticmem_pages(struct page_info *pg, unsigned long nr_mfns,
     for ( i = 0; i < nr_mfns; i++ )
     {
         /* The page should be static and not yet allocated. */
-        if ( pg[i].count_info != (PGC_state_free | PGC_static) )
+        //if ( (pg[i].count_info & (PGC_state_free | PGC_static)) != (PGC_state_free | PGC_static) )
+	//printk("%s ========= : pg[%ld].count_info = %lx, PGC_state_free = %lx, PGC_static = %lx\n", __func__, i, pg[i].count_info, PGC_state_free, PGC_static);
+        if ( (pg[i].count_info & (PGC_state_free)) != (PGC_state_free) )
         {
             printk(XENLOG_ERR
                    "pg[%lu] Static MFN %"PRI_mfn" c=%#lx t=%#x\n",

@@ -515,12 +515,12 @@ static int __dt_n_size_cells(const struct dt_device_node *np, bool_t parent)
 
 int dt_n_addr_cells(const struct dt_device_node *np)
 {
-    return __dt_n_addr_cells(np, false);
+    return __dt_n_addr_cells(np, true);
 }
 
 int dt_n_size_cells(const struct dt_device_node *np)
 {
-    return __dt_n_size_cells(np, false);
+    return __dt_n_size_cells(np, true);
 }
 
 int dt_child_n_addr_cells(const struct dt_device_node *parent)

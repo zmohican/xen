@@ -96,6 +96,17 @@ config STATIC_MEMORY
 
 	  If unsure, say N.
 
+config VPT_MMIO
+	bool "Device MMIO Virtual Passthrough (UNSUPPORTED)" if UNSUPPORTED
+	depends on ARM
+	help
+	  Device MMIO Virtual Passthroug to support device mmio is NOT page aligned
+	  or device is shared by multiple multiple domain but each domain would only
+	  access different register or diferent bits
+
+	  When enabled, property "xen,reg-wenable" could be used to control the write
+	  access for each register, and "xen-renable" for read access. 
+
 menu "Speculative hardening"
 
 config INDIRECT_THUNK

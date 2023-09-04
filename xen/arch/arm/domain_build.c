@@ -29,6 +29,7 @@
 #include <asm/arm64/sve.h>
 #include <asm/cpufeature.h>
 #include <asm/domain_build.h>
+#include <asm/vpt_mmio.h>
 #include <xen/event.h>
 
 #include <xen/irq.h>
@@ -2988,11 +2989,27 @@ static int __init handle_passthrough_prop(struct kernel_info *kinfo,
 
         if ( gstart & ~PAGE_MASK || mstart & ~PAGE_MASK || size & ~PAGE_MASK )
         {
+#ifdef	CONFIG_VPT_MMIO
+    	    struct vpt_mmio_info *vpt = NULL;
+	    vpt = xmalloc_bytes(sizeof(struct vpt_mmio_info));
+	    vpt->gpa_addr = gstart;
+	    vpt->gpa_size = size;
+	    vpt->mpa_addr = mstart;
+	    vpt->mpa_base = ioremap_nocache(mstart, size);
+	    vpt->wenable = NULL;
+	    vpt->renable = NULL;
+	    safe_strcpy(vpt->name, xen_path ? xen_path->data : "vpt");
+
+	    add_vpt_mmio_region(kinfo->d, vpt);
+	    printk(XENLOG_INFO"========= VPT register %p start = %lx, size = %lx, mpa_base=%lx\n", vpt, gstart, size, mstart);
+#else
             printk(XENLOG_ERR
                     "DomU passthrough config has not page aligned addresses/sizes\n");
             return -EINVAL;
+#endif
         }
-
+	else
+	{
         res = iomem_permit_access(kinfo->d, paddr_to_pfn(mstart),
                                   paddr_to_pfn(PAGE_ALIGN(mstart + size - 1)));
         if ( res )
@@ -3003,6 +3020,13 @@ static int __init handle_passthrough_prop(struct kernel_info *kinfo,
                    mstart & PAGE_MASK, PAGE_ALIGN(mstart + size) - 1);
             return res;
         }
+	else 
+	{
+            printk(XENLOG_INFO "Permit to dom%d access to"
+                   " 0x%"PRIpaddr" - 0x%"PRIpaddr"\n",
+                   kinfo->d->domain_id,
+                   mstart & PAGE_MASK, PAGE_ALIGN(mstart + size) - 1);
+	}
 
         res = map_regions_p2mt(kinfo->d,
                                gaddr_to_gfn(gstart),
@@ -3016,6 +3040,13 @@ static int __init handle_passthrough_prop(struct kernel_info *kinfo,
                    mstart, gstart);
             return -EFAULT;
         }
+	else
+	{
+            printk(XENLOG_INFO
+                   "Map %"PRIpaddr" to the guest at%"PRIpaddr"\n",
+                   mstart, gstart);
+	}
+	}
     }
 
     /*
@@ -3041,6 +3072,15 @@ static int __init handle_passthrough_prop(struct kernel_info *kinfo,
     res = handle_device_interrupts(kinfo->d, node, true);
     if ( res < 0 )
         return res;
+
+    res = fdt_property_cell(kinfo->fdt, "interrupt-parent",
+                            kinfo->phandle_gic);
+
+    if ( res < 0 )
+    {
+            printk ("%s : fdt_property_cell interrupt-parent = %d", __func__, res);
+            return res;
+    }
 
     res = iommu_add_dt_device(node);
     if ( res < 0 )
@@ -3140,8 +3180,17 @@ static int __init scan_pfdt_node(struct kernel_info *kinfo, const void *pfdt,
     int rc = 0;
     void *fdt = kinfo->fdt;
     int node_next;
+    int ps = 0;
 
-    rc = fdt_begin_node(fdt, fdt_get_name(pfdt, nodeoff, NULL));
+    if (!strcmp(fdt_get_name(pfdt, nodeoff, NULL), "passthrough"))
+    {
+	ps = 1;
+    }
+    else
+    {
+        rc = fdt_begin_node(fdt, fdt_get_name(pfdt, nodeoff, NULL));
+    }
+
     if ( rc )
         return rc;
 
@@ -3163,7 +3212,7 @@ static int __init scan_pfdt_node(struct kernel_info *kinfo, const void *pfdt,
         node_next = fdt_next_subnode(pfdt, node_next);
     }
 
-    return fdt_end_node(fdt);
+    return ps ? 0 : fdt_end_node(fdt);
 }
 
 static int __init check_partial_fdt(void *pfdt, size_t size)

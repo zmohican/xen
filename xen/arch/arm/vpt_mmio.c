@@ -28,21 +28,21 @@ static int vpt_mmio_read(struct vcpu *v,
                             void *priv)
 {
 	struct vpt_mmio_info *vpt = (struct vpt_mmio_info *)priv;
-	u32 offset = (uint32_t)(info->gpa - vpt->gpa_addr);
+	u32 offset = (uint32_t)(info->gpa - vpt->gaddr);
 	u64 renable = 0;
 	u64 data = 0;
 
 	// intentionally no alignment check
 	switch (info->dabt.size)
 	{
-	    case DABT_BYTE:		data = *((volatile u8 *)(vpt->mpa_base + offset));  renable = (vpt->renable) ? *((u8 *)(vpt->renable + offset)) : 0xff ; break;
-	    case DABT_HALF_WORD:	data = *((volatile u16*)(vpt->mpa_base + offset));  renable = (vpt->renable) ? *((u8 *)(vpt->renable + offset)) : 0xffff; break;
-	    case DABT_WORD:		data = *((volatile u32*)(vpt->mpa_base + offset));  renable = (vpt->renable) ? *((u8 *)(vpt->renable + offset)) : 0xffffffff; break;
-	    case DABT_DOUBLE_WORD:	data = *((volatile u64*)(vpt->mpa_base + offset));  renable = (vpt->renable) ? *((u8 *)(vpt->renable + offset)) : 0xffffffffffffffff; break;
+	    case DABT_BYTE:		data = *((volatile u8 *)(vpt->mbase + offset));  renable = (vpt->renable) ? *((u8 *)(vpt->renable + offset)) : 0xff ; break;
+	    case DABT_HALF_WORD:	data = *((volatile u16*)(vpt->mbase + offset));  renable = (vpt->renable) ? *((u8 *)(vpt->renable + offset)) : 0xffff; break;
+	    case DABT_WORD:		data = *((volatile u32*)(vpt->mbase + offset));  renable = (vpt->renable) ? *((u8 *)(vpt->renable + offset)) : 0xffffffff; break;
+	    case DABT_DOUBLE_WORD:	data = *((volatile u64*)(vpt->mbase + offset));  renable = (vpt->renable) ? *((u8 *)(vpt->renable + offset)) : 0xffffffffffffffff; break;
 	}
 	*r = (data & renable);
 
-	//printk("%s : %s data:0x%x offset:0x%x\n", __func__, vpt->name, data, offset);
+	//printk("%s  : %s data:0x%"PRIx64" offset:0x%"PRIx32" renable:0x%"PRIx64"\n", __func__, vpt->name, data, offset, renable);
 
 	return 1;
 }
@@ -52,30 +52,30 @@ static int vpt_mmio_write(struct vcpu *v,
                              void *priv)
 {
 	struct vpt_mmio_info *vpt = (struct vpt_mmio_info *)priv;
-	u32 offset = (uint32_t)(info->gpa - vpt->gpa_addr);
+	u32 offset = (uint32_t)(info->gpa - vpt->gaddr);
 	u64 old_data, data;
-	u64 wenable = vpt->wenable ? *(u64 *)(vpt->wenable + offset) : 0xffffffffffffffff;
+	u64 wenable = 0;
 
 	switch (info->dabt.size)
 	{
-	    case DABT_BYTE:		old_data = *((volatile u8 *)(vpt->mpa_base + offset));  wenable = (vpt->wenable) ? *((u8 *)(vpt->wenable + offset)) : 0xff ; break;
-	    case DABT_HALF_WORD:	old_data = *((volatile u16*)(vpt->mpa_base + offset));  wenable = (vpt->wenable) ? *((u8 *)(vpt->wenable + offset)) : 0xffff; break;
-	    case DABT_WORD:		old_data = *((volatile u32*)(vpt->mpa_base + offset));  wenable = (vpt->wenable) ? *((u8 *)(vpt->wenable + offset)) : 0xffffffff; break;
-	    case DABT_DOUBLE_WORD:	old_data = *((volatile u64*)(vpt->mpa_base + offset));  wenable = (vpt->wenable) ? *((u8 *)(vpt->wenable + offset)) : 0xffffffffffffffff; break;
+	    case DABT_BYTE:		old_data = *((volatile u8 *)(vpt->mbase + offset));  wenable = (vpt->wenable) ? *((u8 *)(vpt->wenable + offset)) : 0xff ; break;
+	    case DABT_HALF_WORD:	old_data = *((volatile u16*)(vpt->mbase + offset));  wenable = (vpt->wenable) ? *((u8 *)(vpt->wenable + offset)) : 0xffff; break;
+	    case DABT_WORD:		old_data = *((volatile u32*)(vpt->mbase + offset));  wenable = (vpt->wenable) ? *((u8 *)(vpt->wenable + offset)) : 0xffffffff; break;
+	    case DABT_DOUBLE_WORD:	old_data = *((volatile u64*)(vpt->mbase + offset));  wenable = (vpt->wenable) ? *((u8 *)(vpt->wenable + offset)) : 0xffffffffffffffff; break;
 	}
 	
 	data = r;
 
-	//printk("%s : %s data:0x%x offset:0x%x\n", __func__, vpt->name, data, offset);
+	//printk("%s : %s data:0x%"PRIx64" offset:0x%"PRIx32" wenable:0x%"PRIx64"\n", __func__, vpt->name, data, offset, wenable);
 
 	data = (old_data & ~wenable) | (data & wenable);
 
 	switch (info->dabt.size)
 	{
-	    case DABT_BYTE:		*((u8 *)(vpt->mpa_base + offset)) = data;  break;
-	    case DABT_HALF_WORD:	*((u16*)(vpt->mpa_base + offset)) = data;  break;
-	    case DABT_WORD:		*((u32*)(vpt->mpa_base + offset)) = data;  break;
-	    case DABT_DOUBLE_WORD:	*((u64*)(vpt->mpa_base + offset)) = data;  break;
+	    case DABT_BYTE:		*((volatile u8 *)(vpt->mbase + offset)) = data;  break;
+	    case DABT_HALF_WORD:	*((volatile u16*)(vpt->mbase + offset)) = data;  break;
+	    case DABT_WORD:		*((volatile u32*)(vpt->mbase + offset)) = data;  break;
+	    case DABT_DOUBLE_WORD:	*((volatile u64*)(vpt->mbase + offset)) = data;  break;
 	}
 
 	return 1;
@@ -88,7 +88,7 @@ static const struct mmio_handler_ops vpt_mmio_handler = {
 
 void add_vpt_mmio_region (struct domain *d, struct vpt_mmio_info *vpt)
 {
-	register_mmio_handler(d, &vpt_mmio_handler, vpt->gpa_addr, vpt->gpa_size, vpt);
+	register_mmio_handler(d, &vpt_mmio_handler, vpt->gaddr, vpt->size, vpt);
 }
 /*
  * Local variables:

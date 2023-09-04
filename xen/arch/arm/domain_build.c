@@ -2965,6 +2965,7 @@ static int __init make_vpl011_uart_node(struct kernel_info *kinfo)
  *         0 on success
  */
 static int __init handle_passthrough_prop(struct kernel_info *kinfo,
+                                          const void *pfdt, int nodeoff,
                                           const struct fdt_property *xen_reg,
                                           const struct fdt_property *xen_path,
                                           bool xen_force,
@@ -2975,6 +2976,35 @@ static int __init handle_passthrough_prop(struct kernel_info *kinfo,
     struct dt_device_node *node;
     int res;
     paddr_t mstart, size, gstart;
+
+#ifdef	CONFIG_VPT_MMIO    
+    int propoff, nameoff, len_renable=0, len_wenable=0;
+    const struct fdt_property *prop, *xen_reg_renable=NULL, *xen_reg_wenable=NULL;
+    const char *name;
+
+
+    for ( propoff = fdt_first_property_offset(pfdt, nodeoff);
+          propoff >= 0;
+          propoff = fdt_next_property_offset(pfdt, propoff) )
+    {
+        if ( !(prop = fdt_get_property_by_offset(pfdt, propoff, NULL)) ) break;
+
+         nameoff = fdt32_to_cpu(prop->nameoff);
+         name = fdt_string(pfdt, nameoff);
+         if ( dt_prop_cmp("xen,reg-renable", name) == 0 )
+         {
+             xen_reg_renable = prop;
+             len_renable = fdt32_to_cpu(prop->len) / ((address_cells + 1) * sizeof(uint32_t));		// fixed u32 mask
+             printk("Found %d renable prop->len = %d, address_cells = %d\n", len_renable, fdt32_to_cpu(prop->len), address_cells);
+         }
+         else if ( dt_prop_cmp("xen,reg-wenable", name) == 0 )
+         {
+             xen_reg_wenable = prop;
+             len_wenable = fdt32_to_cpu(prop->len) / ((address_cells + 1) * sizeof(uint32_t));
+             printk("Found %d wenable prop->len = %d, address_cells = %d\n", len_wenable, fdt32_to_cpu(prop->len), address_cells);
+         }
+     }
+#endif    
 
     /* xen,reg specifies where to map the MMIO region */
     cell = (const __be32 *)xen_reg->data;
@@ -2991,17 +3021,55 @@ static int __init handle_passthrough_prop(struct kernel_info *kinfo,
         {
 #ifdef	CONFIG_VPT_MMIO
     	    struct vpt_mmio_info *vpt = NULL;
+	    paddr_t vpt_addr;
+	    paddr_t     vpt_enable;
+	    const __be32 *vpt_cell;
+
 	    vpt = xmalloc_bytes(sizeof(struct vpt_mmio_info));
-	    vpt->gpa_addr = gstart;
-	    vpt->gpa_size = size;
-	    vpt->mpa_addr = mstart;
-	    vpt->mpa_base = ioremap_nocache(mstart, size);
+	    vpt->gaddr = gstart;
+	    vpt->size = size;
+	    vpt->maddr = mstart;
+	    vpt->mbase = ioremap_nocache(mstart, size);
 	    vpt->wenable = NULL;
 	    vpt->renable = NULL;
 	    safe_strcpy(vpt->name, xen_path ? xen_path->data : "vpt");
 
+	    vpt_cell = (__be32 *)xen_reg_renable->data;
+	    for (int k = 0; k < len_renable; k++)
+	    {
+        	device_tree_get_reg(&vpt_cell, address_cells, 1,
+                            &vpt_addr, &vpt_enable);
+		printk("****VPT %s renable : addr = %lx, renable = %lx\n", vpt->name, vpt_addr, vpt_enable);
+		if ((vpt_addr >= vpt->maddr) && (vpt_addr <= (vpt->maddr + vpt->size - 4)))
+		{
+		    if (vpt->renable == NULL)
+		    {
+		        vpt->renable = xmalloc_bytes(vpt->size);
+		        memset(vpt->renable, 0, vpt->size);	
+		    }
+		    *((u32*)(vpt->renable + vpt_addr - vpt->maddr)) = vpt_enable;
+		}
+	    }
+
+	    vpt_cell = (__be32 *)xen_reg_wenable->data;
+	    for (int k = 0; k < len_wenable; k++)
+	    {
+        	device_tree_get_reg(&vpt_cell, address_cells, 1,
+                            &vpt_addr, &vpt_enable);
+		printk("****VPT %s wenable : addr = %lx, wenable = %lx\n", vpt->name, vpt_addr, vpt_enable);
+		if ((vpt_addr >= vpt->maddr) && (vpt_addr <= (vpt->maddr + vpt->size - 4)))
+		{
+		    if (vpt->wenable == NULL)
+		    {
+		        vpt->wenable = xmalloc_bytes(vpt->size);
+		        memset(vpt->wenable, 0, vpt->size);	
+		    }
+		    *((u32*)(vpt->wenable + vpt_addr - vpt->maddr)) = vpt_enable;
+		}
+	    }
+
 	    add_vpt_mmio_region(kinfo->d, vpt);
-	    printk(XENLOG_INFO"========= VPT register %p start = %lx, size = %lx, mpa_base=%lx\n", vpt, gstart, size, mstart);
+	    printk(XENLOG_INFO"========= VPT register %p start = %lx, size = %lx, mstart=%lx, renable=%p, wenable=%p\n", vpt, gstart, size, mstart, vpt->renable, vpt->wenable);
 #else
             printk(XENLOG_ERR
                     "DomU passthrough config has not page aligned addresses/sizes\n");
@@ -3153,7 +3221,7 @@ static int __init handle_prop_pfdt(struct kernel_info *kinfo,
      */
     if ( xen_reg != NULL && (xen_path != NULL || xen_force) )
     {
-        res = handle_passthrough_prop(kinfo, xen_reg, xen_path, xen_force,
+        res = handle_passthrough_prop(kinfo, pfdt, nodeoff, xen_reg, xen_path, xen_force,
                                       address_cells, size_cells);
         if ( res < 0 )
         {

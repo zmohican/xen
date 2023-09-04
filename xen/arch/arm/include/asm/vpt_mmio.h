@@ -24,10 +24,10 @@
 
 struct vpt_mmio_info {
 	char name[32];
-	paddr_t gpa_addr;
-	paddr_t gpa_size;
-	paddr_t mpa_addr;
-	void * mpa_base;
+	paddr_t size;
+	paddr_t gaddr;
+	paddr_t maddr;
+	void * mbase;
 	void * wenable;
 	void * renable;
 };

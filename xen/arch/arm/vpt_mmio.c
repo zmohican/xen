@@ -32,13 +32,29 @@ static int vpt_mmio_read(struct vcpu *v,
 	u64 renable = 0;
 	u64 data = 0;
 
+	if (vpt->renable == NULL)
+	{
+		renable = (info->dabt.size == DABT_BYTE)      ? 0xff :
+			  (info->dabt.size == DABT_HALF_WORD) ? 0xffff :
+			  (info->dabt.size == DABT_WORD)      ? 0xffffffff :
+			  (info->dabt.size == DABT_HALF_WORD) ? 0xffffffffffffffff : 0x0;
+	}
+	else
+	{
+		renable = 0;
+		for (int i=0; i<(1<<info->dabt.size) && offset+i<vpt->size; i++)			// byte access to avoid {renable out of boundary, alignment fault}
+		{
+			renable = renable | ((*((u8*)(vpt->renable + offset + i))) << (i*8));
+		}
+	}
+
 	// intentionally no alignment check
 	switch (info->dabt.size)
 	{
-	    case DABT_BYTE:		data = *((volatile u8 *)(vpt->mbase + offset));  renable = (vpt->renable) ? *((u8 *)(vpt->renable + offset)) : 0xff ; break;
-	    case DABT_HALF_WORD:	data = *((volatile u16*)(vpt->mbase + offset));  renable = (vpt->renable) ? *((u8 *)(vpt->renable + offset)) : 0xffff; break;
-	    case DABT_WORD:		data = *((volatile u32*)(vpt->mbase + offset));  renable = (vpt->renable) ? *((u8 *)(vpt->renable + offset)) : 0xffffffff; break;
-	    case DABT_DOUBLE_WORD:	data = *((volatile u64*)(vpt->mbase + offset));  renable = (vpt->renable) ? *((u8 *)(vpt->renable + offset)) : 0xffffffffffffffff; break;
+	    case DABT_BYTE:		data = *((volatile u8 *)(vpt->mbase + offset));  break;
+	    case DABT_HALF_WORD:	data = *((volatile u16*)(vpt->mbase + offset));  break;
+	    case DABT_WORD:		data = *((volatile u32*)(vpt->mbase + offset));  break;
+	    case DABT_DOUBLE_WORD:	data = *((volatile u64*)(vpt->mbase + offset));  break;
 	}
 	*r = (data & renable);
 
@@ -56,12 +72,28 @@ static int vpt_mmio_write(struct vcpu *v,
 	u64 old_data, data;
 	u64 wenable = 0;
 
+	if (vpt->wenable == NULL)
+	{
+		wenable = (info->dabt.size == DABT_BYTE)      ? 0xff :
+			  (info->dabt.size == DABT_HALF_WORD) ? 0xffff :
+			  (info->dabt.size == DABT_WORD)      ? 0xffffffff :
+			  (info->dabt.size == DABT_HALF_WORD) ? 0xffffffffffffffff : 0x0;
+	}
+	else
+	{
+		wenable = 0;
+		for (int i=0; i<(1<<info->dabt.size) && offset+i<vpt->size; i++)			// byte access to avoid {renable out of boundary, alignment fault}
+		{
+			wenable = wenable | ((*((u8*)(vpt->wenable + offset + i))) << (i*8));
+		}
+	}
+
 	switch (info->dabt.size)
 	{
-	    case DABT_BYTE:		old_data = *((volatile u8 *)(vpt->mbase + offset));  wenable = (vpt->wenable) ? *((u8 *)(vpt->wenable + offset)) : 0xff ; break;
-	    case DABT_HALF_WORD:	old_data = *((volatile u16*)(vpt->mbase + offset));  wenable = (vpt->wenable) ? *((u8 *)(vpt->wenable + offset)) : 0xffff; break;
-	    case DABT_WORD:		old_data = *((volatile u32*)(vpt->mbase + offset));  wenable = (vpt->wenable) ? *((u8 *)(vpt->wenable + offset)) : 0xffffffff; break;
-	    case DABT_DOUBLE_WORD:	old_data = *((volatile u64*)(vpt->mbase + offset));  wenable = (vpt->wenable) ? *((u8 *)(vpt->wenable + offset)) : 0xffffffffffffffff; break;
+	    case DABT_BYTE:		old_data = *((volatile u8 *)(vpt->mbase + offset));  break;
+	    case DABT_HALF_WORD:	old_data = *((volatile u16*)(vpt->mbase + offset));  break;
+	    case DABT_WORD:		old_data = *((volatile u32*)(vpt->mbase + offset));  break;
+	    case DABT_DOUBLE_WORD:	old_data = *((volatile u64*)(vpt->mbase + offset));  break;
 	}
 	
 	data = r;

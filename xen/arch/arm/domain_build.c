@@ -2995,13 +2995,13 @@ static int __init handle_passthrough_prop(struct kernel_info *kinfo,
          {
              xen_reg_renable = prop;
              len_renable = fdt32_to_cpu(prop->len) / ((address_cells + 1) * sizeof(uint32_t));		// fixed u32 mask
-             printk("Found %d renable prop->len = %d, address_cells = %d\n", len_renable, fdt32_to_cpu(prop->len), address_cells);
+             //printk("Found %d renable prop->len = %d, address_cells = %d\n", len_renable, fdt32_to_cpu(prop->len), address_cells);
          }
          else if ( dt_prop_cmp("xen,reg-wenable", name) == 0 )
          {
              xen_reg_wenable = prop;
              len_wenable = fdt32_to_cpu(prop->len) / ((address_cells + 1) * sizeof(uint32_t));
-             printk("Found %d wenable prop->len = %d, address_cells = %d\n", len_wenable, fdt32_to_cpu(prop->len), address_cells);
+             //printk("Found %d wenable prop->len = %d, address_cells = %d\n", len_wenable, fdt32_to_cpu(prop->len), address_cells);
          }
      }
 #endif    
@@ -3039,7 +3039,7 @@ static int __init handle_passthrough_prop(struct kernel_info *kinfo,
 	    {
         	device_tree_get_reg(&vpt_cell, address_cells, 1,
                             &vpt_addr, &vpt_enable);
-		printk("****VPT %s renable : addr = %lx, renable = %lx\n", vpt->name, vpt_addr, vpt_enable);
+		//printk("****VPT %s renable : addr = %lx, renable = %lx\n", vpt->name, vpt_addr, vpt_enable);
 		if ((vpt_addr >= vpt->maddr) && (vpt_addr <= (vpt->maddr + vpt->size - 4)))
 		{
 		    if (vpt->renable == NULL)
@@ -3056,7 +3056,7 @@ static int __init handle_passthrough_prop(struct kernel_info *kinfo,
 	    {
         	device_tree_get_reg(&vpt_cell, address_cells, 1,
                             &vpt_addr, &vpt_enable);
-		printk("****VPT %s wenable : addr = %lx, wenable = %lx\n", vpt->name, vpt_addr, vpt_enable);
+		//printk("****VPT %s wenable : addr = %lx, wenable = %lx\n", vpt->name, vpt_addr, vpt_enable);
 		if ((vpt_addr >= vpt->maddr) && (vpt_addr <= (vpt->maddr + vpt->size - 4)))
 		{
 		    if (vpt->wenable == NULL)
@@ -3069,7 +3069,7 @@ static int __init handle_passthrough_prop(struct kernel_info *kinfo,
 	    }
 
 	    add_vpt_mmio_region(kinfo->d, vpt);
-	    printk(XENLOG_INFO"========= VPT register %p start = %lx, size = %lx, mstart=%lx, renable=%p, wenable=%p\n", vpt, gstart, size, mstart, vpt->renable, vpt->wenable);
+	    //printk(XENLOG_INFO"========= VPT register %p start = %lx, size = %lx, mstart=%lx, renable=%p, wenable=%p\n", vpt, gstart, size, mstart, vpt->renable, vpt->wenable);
 #else
             printk(XENLOG_ERR
                     "DomU passthrough config has not page aligned addresses/sizes\n");
